@@ -40,6 +40,14 @@ final class AppState: ObservableObject {
     // newer SDKs and the macro plugin is missing from CLT-only installs.
     @Published var previewDropTargeted = false
 
+    // MARK: Bulk lookup state
+    @Published var showBulkSheet = false
+    @Published var bulkText = ""
+    @Published var isBulkRunning = false
+    @Published var bulkTotal = 0
+    @Published var bulkDone = 0
+    @Published var bulkLog: [BulkEntry] = []
+
     private let lookupService = AceLookupService()
 
     // MARK: Derived
@@ -276,6 +284,92 @@ final class AppState: ObservableObject {
         }
         return "\(n) sign\(n == 1 ? "" : "s") · \(queuePerPage) per sheet · \(queuePageCount) sheet\(queuePageCount == 1 ? "" : "s") to print"
     }
+
+    // MARK: Bulk lookup
+    // Looks up many SKUs (one per line) and adds each result straight to the
+    // queue, using the current size/format/footer settings. Then the queue's
+    // Export PDF gang-runs them all into one print-ready file.
+
+    /// Builds a sign spec from a lookup result without disturbing the fields
+    /// the user is currently editing (bulk must not clobber the live sign).
+    private func spec(from outcome: LookupOutcome, image: NSImage?, typedSKU: String) -> SignSpec {
+        let defaults = UserDefaults.standard
+        let showFooter = defaults.bool(forKey: Prefs.showFooter)
+        let storeName = defaults.string(forKey: Prefs.storeName) ?? ""
+        var logo: NSImage?
+        if let path = defaults.string(forKey: Prefs.logoPath), !path.isEmpty {
+            logo = NSImage(contentsOfFile: path)
+        }
+        let typedIsItemNumber = typedSKU.count >= 4 && typedSKU.allSatisfy(\.isNumber)
+        let footerSKU = typedIsItemNumber ? typedSKU : (outcome.resolvedItemNumber ?? "")
+        return SignSpec(
+            productName: outcome.productName ?? "",
+            detailLine: showDetailLine ? (outcome.detailLine ?? "") : "",
+            priceText: outcome.priceText ?? "",
+            wasPriceText: outcome.wasPriceText ?? "",
+            unitSuffix: "",
+            sku: footerSKU,
+            footerText: showFooter && !storeName.isEmpty ? storeName : nil,
+            image: image,
+            customLogo: logo,
+            layout: layout,
+            sizePoints: signPointSize
+        )
+    }
+
+    /// Parsed, de-duplicated, non-empty SKU lines from the bulk text box.
+    var bulkSKUs: [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for line in bulkText.split(whereSeparator: { $0 == "\n" || $0 == "\r" }) {
+            let s = line.trimmingCharacters(in: .whitespaces)
+            guard !s.isEmpty, seen.insert(s).inserted else { continue }
+            out.append(s)
+        }
+        return out
+    }
+
+    func runBulkLookup() {
+        let skus = bulkSKUs
+        guard !skus.isEmpty, !isBulkRunning else { return }
+        isBulkRunning = true
+        bulkTotal = skus.count
+        bulkDone = 0
+        bulkLog = []
+
+        Task {
+            let storeCode = UserDefaults.standard.string(forKey: Prefs.storeCode) ?? "12180"
+            for sku in skus {
+                let outcome = await self.lookupService.lookup(sku: sku, storeCode: storeCode)
+                var image: NSImage?
+                if let url = outcome.imageURL {
+                    image = await self.lookupService.fetchImage(from: url)
+                }
+                if outcome.productName != nil || outcome.priceText != nil {
+                    let builtSpec = self.spec(from: outcome, image: image, typedSKU: sku)
+                    let name = outcome.productName ?? "SKU \(sku)"
+                    let price = PriceFormatter.display(outcome.priceText ?? "") ?? ""
+                    self.queue.append(QueuedSign(spec: builtSpec, title: name,
+                                                 subtitle: price, thumbnail: image))
+                    self.bulkLog.append(BulkEntry(sku: sku, ok: true,
+                                                  detail: "\(name)\(price.isEmpty ? "" : " — \(price)")"))
+                } else {
+                    self.bulkLog.append(BulkEntry(sku: sku, ok: false,
+                                                  detail: "not found — skipped"))
+                }
+                self.bulkDone += 1
+            }
+            self.isBulkRunning = false
+        }
+    }
+}
+
+/// One line in the bulk-lookup results log.
+struct BulkEntry: Identifiable {
+    let id = UUID()
+    let sku: String
+    let ok: Bool
+    let detail: String
 }
 
 /// One snapshotted sign in the print queue. The spec is a value copy, so

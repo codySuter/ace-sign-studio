@@ -15,6 +15,9 @@ struct ContentView: View {
         .sheet(isPresented: $state.showDiagnostics) {
             DiagnosticsView().environmentObject(state)
         }
+        .sheet(isPresented: $state.showBulkSheet) {
+            BulkLookupView().environmentObject(state)
+        }
         .onChange(of: state.focusSKURequested) { requested in
             if requested {
                 skuFocused = true
@@ -70,6 +73,12 @@ struct ContentView: View {
                     .disabled(state.isLookingUp
                         || state.sku.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                Button {
+                    state.showBulkSheet = true
+                } label: {
+                    Label("Bulk Lookup…", systemImage: "square.stack.3d.up")
+                }
+                .help("Look up many SKUs at once (one per line) into the print queue")
                 if let error = state.lookupError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout)
