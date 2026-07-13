@@ -1,0 +1,16 @@
+# Swift / macOS build output
+AceSignStudio/.build/
+AceSignStudio/*.app/
+AceSignStudio/.swiftpm/
+*.xcodeproj
+
+# Python / Windows build output
+__pycache__/
+*.pyc
+AceSignStudioWindows/build/
+AceSignStudioWindows/dist/
+AceSignStudioWindows/build-venv/
+AceSignStudioWindows/*.spec.bak
+
+# OS
+.DS_Store
