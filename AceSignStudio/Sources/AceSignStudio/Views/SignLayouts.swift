@@ -23,6 +23,8 @@ struct SignRootView: View {
                 StandardSignLayout(spec: spec, isPreview: isPreview)
             case .sale:
                 SaleSignLayout(spec: spec, isPreview: isPreview)
+            case .stihlClearance:
+                StihlClearanceSignLayout(spec: spec, isPreview: isPreview)
             }
         }
         .frame(width: spec.sizePoints.width, height: spec.sizePoints.height)
@@ -99,6 +101,221 @@ struct SaleSignLayout: View {
     }
 }
 
+// MARK: - STIHL Clearance format
+//
+// A loud, single-unit sign for a cleared-out STIHL machine. Two jobs at once:
+// stop someone in the aisle, and tell them plainly what a clearance STIHL is
+// and isn't — the terms differ enough from a normal sale that they belong on
+// the sign, not on a separate placard that can wander off.
+//
+// Deliberately photo-free. At shelf-card sizes the terms block needs the room,
+// and a catalog photo on a one-off floor unit shows a machine that isn't the
+// one the customer is standing in front of.
+
+struct StihlClearanceSignLayout: View {
+    let spec: SignSpec
+    let isPreview: Bool
+
+    private var u: CGFloat { min(spec.sizePoints.width, spec.sizePoints.height) / 252 }
+    private var frameWidth: CGFloat { 5 * u }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ClearanceBanner(u: u)
+            VStack(alignment: .leading, spacing: 6 * u) {
+                HStack(alignment: .top, spacing: 10 * u) {
+                    SignTitleBlock(spec: spec, isPreview: isPreview, u: u,
+                                   lineLimit: spec.isWide ? 2 : 3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    AceBadgeView(logo: spec.customLogo, u: u, heightUnits: 34)
+                }
+                ClearancePriceRow(spec: spec, isPreview: isPreview, u: u)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ClearanceTermsBlock(u: u)
+                SignFooter(sku: spec.sku, footer: spec.footerText, u: u)
+            }
+            .padding(EdgeInsets(top: 8 * u, leading: 11 * u, bottom: 8 * u, trailing: 11 * u))
+        }
+        .padding(frameWidth)
+        .overlay(Rectangle().strokeBorder(Color.aceRed, lineWidth: frameWidth))
+    }
+}
+
+/// Full-bleed black banner across the top — the part that carries across the
+/// aisle. Ace Red tab on the right pins down that the deal is one machine.
+struct ClearanceBanner: View {
+    let u: CGFloat
+
+    var body: some View {
+        HStack(spacing: 8 * u) {
+            Text(ClearanceCopy.banner)
+                .font(AceFont.font(size: 25 * u, weight: .black))
+                .tracking(0.5 * u)
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+            Spacer(minLength: 0)
+            Text(ClearanceCopy.kicker)
+                .font(AceFont.font(size: 10 * u, weight: .black))
+                .tracking(0.5 * u)
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .padding(.horizontal, 6 * u)
+                .padding(.vertical, 2.5 * u)
+                .background(Rectangle().fill(Color.aceRed))
+        }
+        .padding(.horizontal, 10 * u)
+        .padding(.vertical, 5 * u)
+        .frame(maxWidth: .infinity)
+        .background(Rectangle().fill(Color.black))
+    }
+}
+
+/// Was/Now pricing. With `wasNowStyle` on and a was-price set, the old price
+/// sits struck through beside a "NOW" pricepoint plus the dollars saved;
+/// otherwise it's the pricepoint on its own.
+struct ClearancePriceRow: View {
+    let spec: SignSpec
+    let isPreview: Bool
+    let u: CGFloat
+
+    private var wasParts: PriceFormatter.Parts? {
+        guard spec.wasNowStyle else { return nil }
+        return PriceFormatter.parts(from: spec.wasPriceText)
+    }
+
+    /// Whole-dollar savings, shown only when the was-price is genuinely higher.
+    private var savings: String? {
+        guard spec.wasNowStyle,
+              let was = Double(spec.wasPriceText.replacingOccurrences(of: "$", with: "")
+                                                .replacingOccurrences(of: ",", with: "")
+                                                .trimmingCharacters(in: .whitespaces)),
+              let now = Double(spec.priceText.replacingOccurrences(of: "$", with: "")
+                                             .replacingOccurrences(of: ",", with: "")
+                                             .trimmingCharacters(in: .whitespaces)),
+              was - now >= 1,
+              let parts = PriceFormatter.parts(from: String(format: "%.2f", was - now))
+        else { return nil }
+        // Reads as a price, not an accounting figure: "$120", not "$120.00".
+        return parts.cents == "00" ? "$\(parts.dollars)" : "$\(parts.dollars).\(parts.cents)"
+    }
+
+    var body: some View {
+        // Wide runs was/now side by side; tall stacks them, because a portrait
+        // sign has height to spend and no photo to spend it on.
+        if spec.isWide { wideRow } else { tallColumn }
+    }
+
+    private var wideRow: some View {
+        HStack(alignment: .center, spacing: 10 * u) {
+            if wasParts != nil {
+                VStack(alignment: .leading, spacing: 3 * u) {
+                    wasLabel
+                    wasPrice
+                    savingsChip
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 3 * u) {
+                if wasParts != nil {
+                    SaleTag(u: u, text: "NOW")
+                }
+                pricePoint
+            }
+            .layoutPriority(1)
+        }
+    }
+
+    private var tallColumn: some View {
+        VStack(spacing: 4 * u) {
+            if wasParts != nil {
+                wasLabel
+                wasPrice
+                SaleTag(u: u, text: "NOW")
+            }
+            pricePoint
+            savingsChip
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var wasLabel: some View {
+        Text("WAS")
+            .font(AceFont.font(size: 10 * u, weight: .black))
+            .tracking(0.8 * u)
+            .foregroundColor(.aceCoolGray)
+    }
+
+    @ViewBuilder
+    private var wasPrice: some View {
+        if let was = wasParts {
+            Text("$\(was.dollars).\(was.cents)")
+                .font(AceFont.font(size: 24 * u, weight: .bold))
+                .foregroundColor(.aceCoolGray)
+                .strikethrough(true, color: .aceRed)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+        }
+    }
+
+    @ViewBuilder
+    private var savingsChip: some View {
+        if let savings {
+            Text("YOU SAVE \(savings)")
+                .font(AceFont.font(size: 11 * u, weight: .black))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .padding(.horizontal, 6 * u)
+                .padding(.vertical, 2.5 * u)
+                .background(Rectangle().fill(Color.aceRed))
+        }
+    }
+
+    private var pricePoint: some View {
+        PricePointChip(price: spec.priceText, unit: spec.unitSuffix, u: u,
+                       placeholderWhenEmpty: isPreview)
+    }
+}
+
+/// The store's clearance terms, set as small print in a boxed block so they
+/// read as terms rather than as marketing.
+struct ClearanceTermsBlock: View {
+    let u: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3 * u) {
+            Text(ClearanceCopy.policyHeading)
+                .font(AceFont.font(size: 8 * u, weight: .black))
+                .tracking(0.8 * u)
+                .foregroundColor(.white)
+                .padding(.horizontal, 5 * u)
+                .padding(.vertical, 1.5 * u)
+                .background(Rectangle().fill(Color.black))
+            ForEach(ClearanceCopy.policy, id: \.self) { line in
+                HStack(alignment: .top, spacing: 4 * u) {
+                    Rectangle()
+                        .fill(Color.aceRed)
+                        .frame(width: 3.5 * u, height: 3.5 * u)
+                        .padding(.top, 3 * u)
+                    Text(line)
+                        .font(AceFont.font(size: 8.5 * u, weight: .medium))
+                        .foregroundColor(.black)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.65)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(6 * u)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Rectangle().fill(Color.aceLightGray))
+        .overlay(Rectangle().strokeBorder(Color.black, lineWidth: max(1, 0.9 * u)))
+    }
+}
+
 // MARK: - Shared building blocks
 
 /// The Ace brand mark: a custom logo from Settings if set, otherwise the
@@ -107,6 +324,9 @@ struct SaleSignLayout: View {
 struct AceBadgeView: View {
     let logo: NSImage?
     let u: CGFloat
+    /// Mark height in layout units — smaller on formats where the headline,
+    /// not the logo, is doing the shouting.
+    var heightUnits: CGFloat = 56
 
     var body: some View {
         if let image = logo ?? AceBrand.logo {
@@ -114,20 +334,20 @@ struct AceBadgeView: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .frame(height: 56 * u)
-                .frame(maxWidth: 150 * u, alignment: .leading)
+                .frame(height: heightUnits * u)
+                .frame(maxWidth: heightUnits * 2.7 * u, alignment: .leading)
         } else {
             RoundedRectangle(cornerRadius: 10 * u)
                 .fill(Color.aceRed)
-                .frame(width: 56 * u, height: 56 * u)
+                .frame(width: heightUnits * u, height: heightUnits * u)
                 .overlay(
                     VStack(spacing: 1 * u) {
                         Text("Ace")
-                            .font(.system(size: 26 * u, weight: .black, design: .serif))
+                            .font(.system(size: 26 * u * (heightUnits / 56), weight: .black, design: .serif))
                             .italic()
                         Text("HARDWARE")
-                            .font(.system(size: 6 * u, weight: .bold))
-                            .tracking(1.1 * u)
+                            .font(.system(size: 6 * u * (heightUnits / 56), weight: .bold))
+                            .tracking(1.1 * u * (heightUnits / 56))
                     }
                     .foregroundColor(.white)
                 )

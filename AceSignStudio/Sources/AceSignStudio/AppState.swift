@@ -23,6 +23,7 @@ final class AppState: ObservableObject {
     @Published var orientation: SignOrientation = .landscape
     @Published var layout: SignLayoutKind = .standard
     @Published var showDetailLine = true   // brand/model line under the name
+    @Published var wasNowStyle = true      // clearance format: was/now pricing
 
     // MARK: Print configuration
     @Published var paper: PaperOption = .letter
@@ -86,7 +87,8 @@ final class AppState: ObservableObject {
             image: productImage,
             customLogo: logo,
             layout: layout,
-            sizePoints: signPointSize
+            sizePoints: signPointSize,
+            wasNowStyle: wasNowStyle
         )
     }
 
@@ -313,7 +315,8 @@ final class AppState: ObservableObject {
             image: image,
             customLogo: logo,
             layout: layout,
-            sizePoints: signPointSize
+            sizePoints: signPointSize,
+            wasNowStyle: wasNowStyle
         )
     }
 

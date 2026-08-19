@@ -42,6 +42,7 @@ cd AceSignStudio
 | Fix anything | Every field on the left is editable; the preview updates live |
 | Change the photo | **Choose…**, **Paste** (⌘V from a copied image), or drag an image onto the preview |
 | Sale signs | Switch **Format** to *Sale* and fill in the *Was price* for a strikethrough + SALE flash |
+| STIHL clearance signs | Switch **Format** to *STIHL Clearance*. Fill in the *Was price* for was/now pricing (toggle it off for the clearance price alone). The store's clearance terms print automatically; no photo is used |
 | Print | ⌘P — pick paper (Letter by default); turn on *Fit as many signs as possible* to gang-run a sheet with cut marks |
 | Exact-size output | Set **Paper** to *Exact Sign Size* (useful for PDF exports sent to a print shop) |
 | Batch several signs | Build a sign, click **Add to Queue**, repeat for each item, then **Print Queue** or **Export PDF** to output them all at once (one multi-page PDF / print job) |
@@ -96,6 +97,8 @@ Signs follow the Ace Brand Guidelines (the 11-part PDF set):
   "REG. $x.xx" chip for the was-price.
 - **Logo** — the preferred stacked two-line wordmark, always at brand proportions and well above
   the 0.5 in minimum size.
+- **Voice** — the clearance terms are written in the guide's "Honest Neighbor" voice: short
+  sentences, second person, contractions, no fluff.
 
 ## Built to grow
 
@@ -103,8 +106,10 @@ This is set up so new signage needs slot in cleanly:
 
 - **New sign sizes** → add one line to `SignSize.presets` in `Sources/AceSignStudio/Models.swift`
   (a "Custom…" size with any dimensions is already built in).
-- **New formats** (clearance, bin tags, QR signs…) → add a case to `SignLayoutKind` and a layout
-  view in `Views/SignLayouts.swift`; the preview, printer, and PDF exporter pick it up automatically.
+- **New formats** (bin tags, QR signs…) → add a case to `SignLayoutKind` and a layout view in
+  `Views/SignLayouts.swift`; the preview, printer, and PDF exporter pick it up automatically.
+  *STIHL Clearance* is the worked example: its copy is one constant (`ClearanceCopy` in
+  `Models.swift`) and its layout is `StihlClearanceSignLayout`.
 - **New paper/imposition options** → `PaperOption` in `Models.swift`; multi-up math is generic in
   `Rendering/Rendering.swift`.
 - The lookup lives in `Lookup/` behind one function (`AceLookupService.lookup`) so the data source

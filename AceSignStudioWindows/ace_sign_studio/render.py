@@ -14,7 +14,9 @@ from typing import Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .models import (ACE_RED, ACE_COOL_GRAY, ACE_HAIRLINE, BLACK, WHITE,
+from .models import (ACE_RED, ACE_COOL_GRAY, ACE_HAIRLINE, ACE_LIGHT_GRAY,
+                     BLACK, WHITE, CLEARANCE_BANNER, CLEARANCE_KICKER,
+                     CLEARANCE_POLICY, CLEARANCE_POLICY_HEADING,
                      SignSpec, price_parts)
 
 DPI = 300
@@ -101,6 +103,11 @@ def render_sign(spec: SignSpec, scale: float = 1.0, preview: bool = False) -> Im
     # `u` scales every dimension to the sign's short side (matches macOS app).
     u = min(px_w, px_h) / 252.0
     pad = 14 * u
+
+    if spec.is_clearance:
+        _layout_clearance(draw, img, spec, px_w, px_h, u)
+        return img
+
     sale = spec.layout == "Sale"
 
     if spec.is_wide:
@@ -115,15 +122,18 @@ def render_sign(spec: SignSpec, scale: float = 1.0, preview: bool = False) -> Im
     return img
 
 
-def _place_logo(img, spec, x, y, u):
+def _place_logo(img, spec, x, y, u, h_units=56, right_edge=None):
+    """Paste the Ace mark. `h_units` is its height in layout units; pass
+    `right_edge` to right-align it against that x instead of starting at `x`."""
     logo = _load_logo(getattr(spec, "_logo_path", "") or "")
     if logo is None:
-        return 0.0, 56 * u
+        return 0.0, h_units * u
     ratio = logo.width / logo.height
-    logo_h = 56 * u
-    logo_w = min(logo_h * ratio, 150 * u)
+    logo_h = h_units * u
+    logo_w = min(logo_h * ratio, h_units * 2.7 * u)
     placed = logo.resize((max(1, int(logo_w)), max(1, int(logo_h))), Image.LANCZOS)
-    img.paste(placed, (int(x), int(y)), placed)
+    px = int(right_edge - logo_w) if right_edge is not None else int(x)
+    img.paste(placed, (px, int(y)), placed)
     return logo_w, logo_h
 
 
@@ -169,6 +179,303 @@ def _layout_tall(draw, img, spec, px_w, px_h, u, pad, sale):
         _paste_photo(img, spec.image, (pad, body_top, px_w - pad, price_top - 8 * u))
     _draw_price_block(draw, spec, px_w / 2, price_top, px_w - 2 * pad, price_h, u, sale)
     _draw_footer(draw, spec, pad, px_w, px_h - pad, u)
+
+
+# ---------------------------------------------------------------------------
+# STIHL Clearance format
+#
+# A loud, single-unit sign for a cleared-out STIHL machine. Two jobs at once:
+# stop someone in the aisle, and tell them plainly what a clearance STIHL is
+# and isn't — the terms differ enough from a normal sale that they belong on
+# the sign, not on a separate placard that can wander off.
+#
+# Deliberately photo-free. At shelf-card sizes the terms block needs the room,
+# and a catalog photo on a one-off floor unit shows a machine that isn't the
+# one the customer is standing in front of.
+# ---------------------------------------------------------------------------
+def _layout_clearance(draw, img, spec, px_w, px_h, u):
+    frame = max(2, int(round(5 * u)))
+    pad = frame + 11 * u
+
+    # Full-bleed black banner, then the red frame drawn over everything.
+    banner_h = _draw_clearance_banner(draw, frame, frame, px_w - frame, u)
+
+    # Bottom up: footer, then the terms block above it.
+    footer_baseline = px_h - frame - 9 * u
+    _draw_footer(draw, spec, pad, px_w, footer_baseline, u)
+    terms_bottom = footer_baseline - 22 * u
+    terms_h = _draw_clearance_terms(draw, pad, 0, px_w - pad, u, measure_only=True)
+    terms_top = terms_bottom - terms_h
+    _draw_clearance_terms(draw, pad, terms_top, px_w - pad, u)
+
+    # Top down: title (+ detail) with the Ace mark parked on the right.
+    head_y = frame + banner_h + 8 * u
+    logo_w, logo_h = _place_logo(img, spec, 0, head_y, u, h_units=34,
+                                 right_edge=px_w - pad)
+    title_w = px_w - pad - pad - (logo_w + 10 * u if logo_w else 0)
+    head_bottom = _header_text(draw, spec, pad, head_y, title_w, u,
+                               lines=2 if spec.is_wide else 3)
+    head_bottom = max(head_bottom, head_y + logo_h)
+
+    # Whatever is left in the middle belongs to the price.
+    band_top = head_bottom + 6 * u
+    band_bottom = terms_top - 6 * u
+    if band_bottom > band_top:
+        _draw_clearance_price(draw, spec, pad, band_top, px_w - pad, band_bottom, u)
+
+    draw.rectangle([frame // 2, frame // 2, px_w - 1 - frame // 2, px_h - 1 - frame // 2],
+                   outline=ACE_RED, width=frame)
+
+
+def _draw_clearance_banner(draw, x0, y0, x1, u):
+    """Black banner across the top with an Ace-red 'this unit only' tab.
+    Returns its height."""
+    pad_x, pad_y = 10 * u, 5 * u
+    kick_f = _font("Black", max(5, int(round(10 * u))))
+    kw, kh = _text_size(draw, CLEARANCE_KICKER, kick_f)
+    # The tab is fixed width, so the headline only ever gets what's left of the
+    # band — otherwise a tall sign runs the two into each other.
+    head_f = _fit_font(draw, CLEARANCE_BANNER, "Black", int(round(25 * u)),
+                       max(30 * u, (x1 - x0) - 2 * pad_x - (kw + 12 * u) - 10 * u))
+    hw, hh = _text_size(draw, CLEARANCE_BANNER, head_f)
+    tab_h = kh + 5 * u
+    band_h = max(hh, tab_h) + 2 * pad_y
+    draw.rectangle([x0, y0, x1, y0 + band_h], fill=BLACK)
+    _draw_text(draw, (x0 + pad_x, y0 + band_h / 2), CLEARANCE_BANNER, head_f, WHITE,
+               anchor="lm")
+    tab_x1 = x1 - pad_x
+    tab_x0 = tab_x1 - kw - 12 * u
+    tab_y0 = y0 + (band_h - tab_h) / 2
+    draw.rectangle([tab_x0, tab_y0, tab_x1, tab_y0 + tab_h], fill=ACE_RED)
+    _draw_text(draw, ((tab_x0 + tab_x1) / 2, tab_y0 + tab_h / 2), CLEARANCE_KICKER,
+               kick_f, WHITE, anchor="mm")
+    return band_h
+
+
+def _clearance_terms_font(draw, u, max_w):
+    """Largest size at which every terms line wraps to two lines or fewer."""
+    size = 8.5 * u
+    for _ in range(10):
+        f = _font("Medium", max(5, int(round(size))))
+        wrapped = [_wrap(draw, line, f, max_w, 2) for line in CLEARANCE_POLICY]
+        if all(w is not None for w in wrapped):
+            return f, wrapped
+        size *= 0.9
+    f = _font("Medium", 5)
+    return f, [[line] for line in CLEARANCE_POLICY]
+
+
+def _draw_clearance_terms(draw, x0, y0, x1, u, measure_only=False):
+    """The store's clearance terms as boxed small print. Returns the block
+    height so the caller can bottom-anchor it."""
+    pad = 6 * u
+    bullet = 3.5 * u
+    text_x = x0 + pad + bullet + 4 * u
+    max_w = max(20 * u, x1 - pad - text_x)
+    f, wrapped = _clearance_terms_font(draw, u, max_w)
+    line_h = f.size * 1.18
+
+    head_f = _font("Black", max(5, int(round(8 * u))))
+    _, head_th = _text_size(draw, CLEARANCE_POLICY_HEADING, head_f)
+    head_h = head_th + 3 * u
+
+    body_h = sum(line_h * len(w) + 2 * u for w in wrapped)
+    total_h = pad + head_h + 3 * u + body_h + pad
+    if measure_only:
+        return total_h
+
+    draw.rectangle([x0, y0, x1, y0 + total_h], fill=ACE_LIGHT_GRAY,
+                   outline=BLACK, width=max(1, int(round(0.9 * u))))
+    head_w, _ = _text_size(draw, CLEARANCE_POLICY_HEADING, head_f)
+    draw.rectangle([x0 + pad, y0 + pad, x0 + pad + head_w + 10 * u, y0 + pad + head_h],
+                   fill=BLACK)
+    _draw_text(draw, (x0 + pad + 5 * u, y0 + pad + head_h / 2),
+               CLEARANCE_POLICY_HEADING, head_f, WHITE, anchor="lm")
+
+    y = y0 + pad + head_h + 3 * u
+    for w in wrapped:
+        draw.rectangle([x0 + pad, y + 0.28 * line_h,
+                        x0 + pad + bullet, y + 0.28 * line_h + bullet], fill=ACE_RED)
+        for i, ln in enumerate(w):
+            _draw_text(draw, (text_x, y + i * line_h), ln, f, BLACK)
+        y += line_h * len(w) + 2 * u
+    return total_h
+
+
+def _clearance_savings(spec):
+    """Whole-dollar savings, only when the was-price is genuinely higher."""
+    def value(text):
+        try:
+            return float(str(text).strip().replace("$", "").replace(",", ""))
+        except (ValueError, AttributeError):
+            return None
+    was, now = value(spec.was_price_text), value(spec.price_text)
+    if was is None or now is None or was - now < 1:
+        return None
+    cents = int(round((was - now) * 100))
+    if cents % 100 == 0:
+        return "$%d" % (cents // 100)
+    return "$%d.%02d" % (cents // 100, cents % 100)
+
+
+def _price_chip_size(draw, spec, u, parts, fit=1.0):
+    """Footprint of the red pricepoint chip drawn by `_draw_price_chip`."""
+    if parts:
+        dollars, cents = parts
+        big = _font("Black", int(68 * u * fit))
+        sign = _font("Black", int(26 * u * fit))
+        cent = _font("Black", int(26 * u * fit))
+        inner = (_text_size(draw, "$", sign)[0] + _text_size(draw, dollars, big)[0]
+                 + _text_size(draw, cents, cent)[0] + 6 * u * fit)
+        return inner + 20 * u * fit, 68 * u * fit + 12 * u * fit
+    raw = (spec.price_text or "").strip()
+    if raw:
+        f = _fit_font(draw, raw, "Black", int(34 * u), avail_w_hint(u))
+        tw, th = _text_size(draw, raw, f)
+        return tw + 20 * u, th + 12 * u
+    return 0.0, 0.0
+
+
+def _draw_clearance_price(draw, spec, x0, y0, x1, y1, u):
+    """Was/Now pricing: the old price struck through on the left, the NOW
+    pricepoint on the right. With was/now off (or no was-price), it's just
+    the pricepoint, right-aligned."""
+    if not spec.is_wide:
+        return _draw_clearance_price_stacked(draw, spec, x0, y0, x1, y1, u)
+    parts = price_parts(spec.price_text)
+    was = price_parts(spec.was_price_text) if spec.was_now_style else None
+    savings = _clearance_savings(spec) if spec.was_now_style else None
+    avail_h = y1 - y0
+    cy = (y0 + y1) / 2
+
+    was_w = 0.0
+    if was:
+        was_f = _font("Bold", max(5, int(round(24 * u))))
+        was_text = "$%s.%s" % was
+        was_w = max(_text_size(draw, was_text, was_f)[0], 40 * u) + 12 * u
+
+    now_tag_h = (16 * u if was else 0)
+    fit = 1.0
+    for _ in range(16):
+        cw, ch = _price_chip_size(draw, spec, u, parts, fit)
+        if cw <= (x1 - x0) - was_w and ch + now_tag_h <= avail_h:
+            break
+        fit *= 0.92
+
+    chip_w, chip_h = _price_chip_size(draw, spec, u, parts, fit)
+    chip_cx = x1 - chip_w / 2
+    chip_cy = cy + now_tag_h / 2
+    if was:
+        tag_f = _font("Black", max(5, int(round(11 * u))))
+        tw, th = _text_size(draw, "NOW", tag_f)
+        tag_h = th + 4 * u
+        tag_y = chip_cy - chip_h / 2 - 3 * u - tag_h
+        tag_x0 = x1 - tw - 16 * u
+        draw.rectangle([tag_x0, tag_y, x1, tag_y + tag_h], fill=BLACK)
+        _draw_text(draw, ((tag_x0 + x1) / 2, tag_y + tag_h / 2), "NOW", tag_f, WHITE,
+                   anchor="mm")
+    _draw_price_chip(draw, spec, chip_cx, chip_cy, u, parts, fit)
+
+    if not was:
+        return
+
+    # Left column: WAS label, the struck-through old price, savings chip.
+    lab_f = _font("Black", max(5, int(round(10 * u))))
+    was_f = _font("Bold", max(5, int(round(24 * u))))
+    was_text = "$%s.%s" % was
+    lab_h = _text_size(draw, "WAS", lab_f)[1]
+    was_h = _text_size(draw, was_text, was_f)[1]
+    save_h = _text_size(draw, "YOU SAVE", lab_f)[1] + 5 * u if savings else 0
+    stack_h = lab_h + 3 * u + was_h + ((3 * u + save_h) if savings else 0)
+    y = cy - stack_h / 2
+
+    _draw_text(draw, (x0, y), "WAS", lab_f, ACE_COOL_GRAY)
+    y += lab_h + 3 * u
+    _draw_text(draw, (x0, y), was_text, was_f, ACE_COOL_GRAY)
+    ink_l, ink_t, ink_r, ink_b = draw.textbbox((x0, y), was_text, font=was_f)
+    strike_y = (ink_t + ink_b) / 2
+    draw.line([(ink_l - 2 * u, strike_y), (ink_r + 2 * u, strike_y)],
+              fill=ACE_RED, width=max(1, int(round(2 * u))))
+    if savings:
+        y += was_h + 3 * u
+        text = "YOU SAVE %s" % savings
+        sw = _text_size(draw, text, lab_f)[0]
+        draw.rectangle([x0, y, x0 + sw + 12 * u, y + save_h], fill=ACE_RED)
+        _draw_text(draw, (x0 + 6 * u, y + save_h / 2), text, lab_f, WHITE, anchor="lm")
+
+
+def _draw_clearance_price_stacked(draw, spec, x0, y0, x1, y1, u):
+    """Portrait arrangement: WAS over NOW over the pricepoint over the savings,
+    centered. A tall sign has height to spend and no photo to spend it on."""
+    parts = price_parts(spec.price_text)
+    was = price_parts(spec.was_price_text) if spec.was_now_style else None
+    savings = _clearance_savings(spec) if spec.was_now_style else None
+    cx = (x0 + x1) / 2
+    gap = 4 * u
+
+    lab_f = _font("Black", max(5, int(round(10 * u))))
+    was_f = _font("Bold", max(5, int(round(26 * u))))
+    tag_f = _font("Black", max(5, int(round(12 * u))))
+    was_text = "$%s.%s" % was if was else ""
+
+    fit = 1.0
+    for _ in range(16):
+        cw, ch = _price_chip_size(draw, spec, u, parts, fit)
+        total = ch
+        if was:
+            total += (_text_size(draw, "WAS", lab_f)[1] + gap
+                      + _text_size(draw, was_text, was_f)[1] + gap
+                      + _text_size(draw, "NOW", tag_f)[1] + 4 * u + gap)
+        if savings:
+            total += gap + _text_size(draw, savings, lab_f)[1] + 5 * u
+        if cw <= (x1 - x0) and total <= (y1 - y0):
+            break
+        fit *= 0.92
+
+    chip_w, chip_h = _price_chip_size(draw, spec, u, parts, fit)
+    blocks = []   # (height, draw_callable)
+    if was:
+        lab_h = _text_size(draw, "WAS", lab_f)[1]
+        was_h = _text_size(draw, was_text, was_f)[1]
+        tag_h = _text_size(draw, "NOW", tag_f)[1] + 4 * u
+
+        def draw_label(y):
+            _draw_text(draw, (cx, y), "WAS", lab_f, ACE_COOL_GRAY, anchor="ma")
+
+        def draw_was(y):
+            _draw_text(draw, (cx, y), was_text, was_f, ACE_COOL_GRAY, anchor="ma")
+            l, t, r, b = draw.textbbox((cx, y), was_text, font=was_f, anchor="ma")
+            draw.line([(l - 2 * u, (t + b) / 2), (r + 2 * u, (t + b) / 2)],
+                      fill=ACE_RED, width=max(1, int(round(2 * u))))
+
+        def draw_tag(y):
+            tw = _text_size(draw, "NOW", tag_f)[0]
+            draw.rectangle([cx - tw / 2 - 8 * u, y, cx + tw / 2 + 8 * u, y + tag_h],
+                           fill=BLACK)
+            _draw_text(draw, (cx, y + tag_h / 2), "NOW", tag_f, WHITE, anchor="mm")
+
+        blocks += [(lab_h, draw_label), (was_h, draw_was), (tag_h, draw_tag)]
+
+    blocks.append((chip_h, lambda y: _draw_price_chip(
+        draw, spec, cx, y + chip_h / 2, u, parts, fit)))
+
+    if savings:
+        save_h = _text_size(draw, savings, lab_f)[1] + 5 * u
+
+        def draw_save(y):
+            text = "YOU SAVE %s" % savings
+            sw = _text_size(draw, text, lab_f)[0]
+            draw.rectangle([cx - sw / 2 - 6 * u, y, cx + sw / 2 + 6 * u, y + save_h],
+                           fill=ACE_RED)
+            _draw_text(draw, (cx, y + save_h / 2), text, lab_f, WHITE, anchor="mm")
+
+        blocks.append((save_h, draw_save))
+
+    total = sum(h for h, _ in blocks) + gap * (len(blocks) - 1)
+    y = y0 + max(0, ((y1 - y0) - total) / 2)
+    for h, fn in blocks:
+        fn(y)
+        y += h + gap
 
 
 def _draw_wrapped_title(draw, text, x, y, max_w, size, lines):

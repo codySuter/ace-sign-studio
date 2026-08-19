@@ -3,7 +3,7 @@
 Desktop apps for **Snyder's Ace Hardware (store #12180, Media, PA)** that turn a SKU into a
 print-ready, Ace-branded shelf sign. Type an item's SKU and the app pulls the **store-specific
 price** and the **product photo** from acehardware.com, lays out a branded **5½ × 3½ in** sign
-(other sizes + a Sale format included), and prints it — single, or a whole **batch queue**
+(other sizes, a Sale format, and a STIHL Clearance format included), and prints it — single, or a whole **batch queue**
 gang-run to fit multiple signs per sheet and save paper.
 
 There are two native apps that share the same lookup and the same brand-compliant output:
@@ -53,3 +53,19 @@ See each app's own README (`AceSignStudio/README.md`, `AceSignStudioWindows/READ
 Follows the Ace Brand Guidelines: **Ace Red PMS 186 C**, the **Roboto** brand font, the official
 **Sale pricepoint** (black SALE tag, white price on a red chip with superscript cents, black REG.
 chip), and the official two-line Ace logo.
+
+## STIHL Clearance signs
+
+A dedicated **STIHL Clearance** format for a cleared-out floor unit — loud enough to stop someone in
+the aisle, and honest about what a clearance STIHL is:
+
+- A black **STIHL CLEARANCE** banner with an Ace-red **THIS UNIT ONLY** tab, inside a red frame.
+- Optional **was / now pricing** — the old price struck through, the new one in the Ace pricepoint,
+  and what the customer saves.
+- A **BEFORE YOU BUY** block carrying the store's terms on every copy: the price is good on that one
+  unit, the mechanic has gone through it and it starts and runs, STIHL's original warranty still
+  covers mechanical issues but not cosmetic ones, and clearance STIHL sales are final.
+
+The terms are baked into the app rather than typed per sign, so a clearance machine can never go out
+with the wrong ones. This format prints no product photo — the terms block needs the room, and a
+catalog photo isn't the unit on the floor.

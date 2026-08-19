@@ -15,8 +15,9 @@ from PIL import Image, ImageTk
 
 from . import __version__
 from .lookup import AceLookup
-from .models import (Config, DEFAULT_SIZE, FORMATS, ORIENTATIONS, PAPER_OPTIONS,
-                     SIGN_SIZES, SignSpec, format_inches)
+from .models import (CLEARANCE_FORMAT, Config, DEFAULT_SIZE, FORMATS,
+                     ORIENTATIONS, PAPER_OPTIONS, SIGN_SIZES, SignSpec,
+                     format_inches)
 from . import render
 
 
@@ -50,6 +51,7 @@ class AceSignApp(tk.Tk):
         self.v_was = tk.StringVar()
         self.v_unit = tk.StringVar()
         self.v_show_detail = tk.BooleanVar(value=True)
+        self.v_was_now = tk.BooleanVar(value=True)
         self.v_size = tk.StringVar(value=DEFAULT_SIZE.name)
         self.v_orient = tk.StringVar(value=ORIENTATIONS[0])
         self.v_format = tk.StringVar(value=FORMATS[0])
@@ -58,8 +60,8 @@ class AceSignApp(tk.Tk):
         self.v_custom_h = tk.StringVar(value="3.5")
         self.v_status = tk.StringVar(value="Enter a SKU and press Look Up.")
         for var in (self.v_name, self.v_detail, self.v_price, self.v_was, self.v_unit,
-                    self.v_show_detail, self.v_size, self.v_orient, self.v_format,
-                    self.v_custom_w, self.v_custom_h):
+                    self.v_show_detail, self.v_was_now, self.v_size, self.v_orient,
+                    self.v_format, self.v_custom_w, self.v_custom_h):
             var.trace_add("write", lambda *_: self._schedule_preview())
 
     # -- layout -------------------------------------------------------------
@@ -151,7 +153,17 @@ class AceSignApp(tk.Tk):
         ttk.Entry(self.custom_row, textvariable=self.v_custom_h, width=6).pack(side="left", padx=2)
         self._combo(sf, "Orientation", self.v_orient, ORIENTATIONS)
         self._combo(sf, "Format", self.v_format, FORMATS)
+        # Clearance-only controls, shown when that format is picked.
+        self.clearance_row = ttk.Frame(sf)
+        ttk.Checkbutton(self.clearance_row, text="Was / Now pricing",
+                        variable=self.v_was_now).pack(anchor="w")
+        ttk.Label(self.clearance_row, wraplength=280, foreground="#666",
+                  text="Prints the store's STIHL clearance terms on the sign. "
+                       "No product photo — the terms block needs the room, and a "
+                       "catalog photo isn't the unit on the floor.").pack(anchor="w")
         self.v_size.trace_add("write", lambda *_: self._toggle_custom())
+        self.v_format.trace_add("write", lambda *_: self._toggle_clearance())
+        self._toggle_clearance()
 
         # Output
         of = ttk.LabelFrame(parent, text="Print", padding=8)
@@ -214,6 +226,12 @@ class AceSignApp(tk.Tk):
         else:
             self.custom_row.pack_forget()
 
+    def _toggle_clearance(self):
+        if self.v_format.get() == CLEARANCE_FORMAT:
+            self.clearance_row.pack(fill="x", pady=(4, 2))
+        else:
+            self.clearance_row.pack_forget()
+
     def _spec(self) -> SignSpec:
         def f(var, default):
             try:
@@ -230,6 +248,7 @@ class AceSignApp(tk.Tk):
                 else self.v_sku.get().strip(),
             footer_text=(self.cfg.store_name if self.cfg.show_footer and self.cfg.store_name else None),
             layout=self.v_format.get(),
+            was_now_style=bool(self.v_was_now.get()),
             size=self._current_size(),
             custom_w=f(self.v_custom_w, 5.5),
             custom_h=f(self.v_custom_h, 3.5),

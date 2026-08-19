@@ -14,9 +14,10 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 # Brand palette (Ace Brand Guidelines, primary palette — used at 100%, no tints)
 # ---------------------------------------------------------------------------
-ACE_RED = (227, 25, 55)        # PMS 186 C
-ACE_COOL_GRAY = (109, 113, 110)  # Cool Gray 11
-ACE_HAIRLINE = (188, 190, 192)   # Cool Gray 1
+ACE_RED = (227, 25, 55)          # PMS 186 C
+ACE_COOL_GRAY = (109, 110, 113)  # Cool Gray 11  (#6D6E71)
+ACE_HAIRLINE = (188, 190, 192)   # Cool Gray 5   (#BCBEC0)
+ACE_LIGHT_GRAY = (230, 231, 232)  # Cool Gray 1  (#E6E7E8)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
@@ -48,7 +49,31 @@ SIGN_SIZES = [
 DEFAULT_SIZE = SIGN_SIZES[0]
 
 ORIENTATIONS = ["Wide", "Tall"]
-FORMATS = ["Standard", "Sale"]
+
+CLEARANCE_FORMAT = "STIHL Clearance"
+FORMATS = ["Standard", "Sale", CLEARANCE_FORMAT]
+
+
+# ---------------------------------------------------------------------------
+# STIHL clearance copy
+#
+# The store's clearance terms for STIHL power equipment. They live here as one
+# constant so the sign always says exactly the same thing — a clearance
+# machine's terms differ from a normal sale, so they travel with the price
+# rather than living on a separate placard that can wander off.
+#
+# Ace "Honest Neighbor" voice: short sentences, second person, contractions,
+# no fluff (Brand Guidelines pp. 25-35).
+# ---------------------------------------------------------------------------
+CLEARANCE_BANNER = "STIHL CLEARANCE"
+CLEARANCE_KICKER = "THIS UNIT ONLY"
+CLEARANCE_POLICY_HEADING = "BEFORE YOU BUY"
+CLEARANCE_POLICY = [
+    "This clearance price is good on this one unit only.",
+    "Our mechanic has gone through it \u2014 it starts and runs.",
+    "STIHL's original warranty still applies to mechanical issues, not cosmetic ones.",
+    "All clearance STIHL sales are final \u2014 no returns or exchanges.",
+]
 
 PAPER_OPTIONS = ["US Letter (8½ × 11)", "6 × 4 in Card", "Exact Sign Size"]
 
@@ -148,6 +173,9 @@ class SignSpec:
     footer_text: Optional[str] = None
     image: object = None         # PIL.Image.Image or None (per-instance field)
     layout: str = "Standard"
+    # Clearance format only: show the was-price struck through beside a "NOW"
+    # price and a savings callout, instead of the price on its own.
+    was_now_style: bool = True
     size: SignSize = DEFAULT_SIZE
     custom_w: float = 5.5
     custom_h: float = 3.5
@@ -162,6 +190,10 @@ class SignSpec:
         else:
             w, h = self.size.height, self.size.width
         return w, h
+
+    @property
+    def is_clearance(self) -> bool:
+        return self.layout == CLEARANCE_FORMAT
 
     @property
     def is_wide(self) -> bool:

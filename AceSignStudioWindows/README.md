@@ -2,9 +2,9 @@
 
 A native Windows app for **Snyder's Ace Hardware (store #12180, Media, PA)** that turns a SKU into a
 print-ready shelf sign: type the item's SKU, and it pulls the **store-specific price** and the
-**product photo** from acehardware.com and lays out an **Ace-branded 5½ × 3½ in sign** (other sizes
-and a Sale format included). This is the Windows counterpart to the macOS app, with the same lookup
-and the same brand-compliant output.
+**product photo** from acehardware.com and lays out an **Ace-branded 5½ × 3½ in sign** (other sizes,
+a Sale format, and a STIHL Clearance format included). This is the Windows counterpart to the macOS
+app, with the same lookup and the same brand-compliant output.
 
 ---
 
@@ -42,6 +42,7 @@ Prefer to run without building? Double-click **`run-from-source.bat`.**
 | Fix anything | Every field is editable; preview updates live |
 | Photo | **Choose…**, **Paste** (Ctrl+V image), or it fills in from the lookup |
 | Sale sign | Set **Format → Sale**; fill **Was price** for the REG. strikethrough |
+| STIHL clearance sign | Set **Format → STIHL Clearance**; fill **Was price** for was/now pricing (uncheck *Was / Now pricing* for the clearance price alone). The store's clearance terms print automatically; no photo is used |
 | Print | **Print…** (Ctrl+P) — prints at true size to your default printer |
 | PDF | **Export PDF…** (Ctrl+E) — great for a print shop or exact-size output |
 | Settings | **File → Settings** — store number, footer line, logo override |
@@ -61,13 +62,17 @@ that log — it records every step and where each value came from.
 
 Follows the Ace Brand Guidelines: **Ace Red PMS 186 C**, the **Roboto** brand font (bundled), the
 official **Sale pricepoint** (black SALE tag, white price on a red chip with superscript cents, black
-REG. chip), and the official two-line Ace logo (override it in Settings if needed).
+REG. chip), and the official two-line Ace logo (override it in Settings if needed). The STIHL
+Clearance terms are written in the guide's "Honest Neighbor" voice — short sentences, second person,
+contractions, no fluff.
 
 ## Built to grow
 
 - **Sign sizes** → add one entry to `SIGN_SIZES` in `ace_sign_studio/models.py` (a Custom size is
   already built in).
-- **Formats** → the Standard/Sale layouts live in `ace_sign_studio/render.py`.
+- **Formats** → the Standard/Sale/STIHL Clearance layouts live in `ace_sign_studio/render.py`; add
+  the name to `FORMATS` in `models.py` and a `_layout_*` branch in `render_sign`. The clearance copy
+  is one constant (`CLEARANCE_POLICY` in `models.py`) so a sign can't go out with the wrong terms.
 - The acehardware.com lookup is isolated in `ace_sign_studio/lookup.py` behind one `lookup()` call.
 
 ## Project layout
