@@ -53,6 +53,14 @@ struct ContentView: View {
         }
     }
 
+    /// The was-price means something specific on a clearance sign: it's the
+    /// pre-clearance ticket price the "WAS" figure is struck through from.
+    private var wasPriceLabel: String {
+        state.layout.isClearance
+            ? "Was price (the pre-clearance ticket price)"
+            : "Was price (optional — adds strikethrough)"
+    }
+
     private var controls: some View {
         Form {
             Section("Look Up Product") {
@@ -136,7 +144,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                TextField("Was price (optional — adds strikethrough)", text: $state.wasPriceText)
+                TextField(wasPriceLabel, text: $state.wasPriceText)
                 TextField("Unit (optional, e.g. /each, /ft, /gal)", text: $state.unitSuffix)
             }
 
@@ -197,7 +205,14 @@ struct ContentView: View {
                         Text(kind.label).tag(kind)
                     }
                 }
-                .pickerStyle(.segmented)
+                if state.layout.isClearance {
+                    Toggle("Was / Now pricing", isOn: $state.wasNowStyle)
+                        .font(.callout)
+                        .help("Prints the was-price struck through beside a NOW price, plus what the customer saves")
+                    Text("Prints the store's STIHL clearance terms on the sign. No product photo — the terms block needs the room, and a catalog photo isn't the unit on the floor.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Section("Print") {

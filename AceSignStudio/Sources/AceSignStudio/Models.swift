@@ -47,14 +47,40 @@ enum SignOrientation: String, CaseIterable, Identifiable {
 enum SignLayoutKind: String, CaseIterable, Identifiable {
     case standard
     case sale
+    case stihlClearance
 
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .standard: return "Standard"
-        case .sale:     return "Sale"
+        case .standard:       return "Standard"
+        case .sale:           return "Sale"
+        case .stihlClearance: return "STIHL Clearance"
         }
     }
+
+    /// Formats that print the store's clearance terms and skip the photo.
+    var isClearance: Bool { self == .stihlClearance }
+}
+
+// MARK: - STIHL clearance copy
+//
+// The store's clearance terms for STIHL power equipment. They live here as
+// one constant so both the sign and any future copy of it say exactly the
+// same thing — a clearance machine's terms differ from a normal sale, so they
+// travel with the price rather than living on a separate placard.
+//
+// Written in the Ace "Honest Neighbor" voice: short sentences, second person,
+// contractions, no fluff (Brand Guidelines pp. 25-35).
+enum ClearanceCopy {
+    static let banner = "STIHL CLEARANCE"
+    static let kicker = "THIS UNIT ONLY"
+    static let policyHeading = "BEFORE YOU BUY"
+    static let policy = [
+        "This clearance price is good on this one unit only.",
+        "Our mechanic has gone through it — it starts and runs.",
+        "STIHL's original warranty still applies to mechanical issues, not cosmetic ones.",
+        "All clearance STIHL sales are final — no returns or exchanges.",
+    ]
 }
 
 // MARK: - Paper for printing
@@ -104,6 +130,9 @@ struct SignSpec {
     var customLogo: NSImage?
     var layout: SignLayoutKind
     var sizePoints: CGSize
+    /// Clearance format only: show the was-price struck through beside a
+    /// "NOW" price and a savings callout, instead of the price on its own.
+    var wasNowStyle: Bool = true
 
     var isWide: Bool { sizePoints.width >= sizePoints.height }
 }
@@ -176,9 +205,11 @@ extension Color {
     /// Ace Red — PMS 186 C (R227 G25 B55).
     static let aceRed = Color(red: 227.0 / 255.0, green: 25.0 / 255.0, blue: 55.0 / 255.0)
     /// Cool Gray 11 (#6D6E71) — secondary text.
-    static let aceCoolGray = Color(red: 109.0 / 255.0, green: 113.0 / 255.0, blue: 110.0 / 255.0)
-    /// Cool Gray 1 (#BCBEC0) — hairline rules.
+    static let aceCoolGray = Color(red: 109.0 / 255.0, green: 110.0 / 255.0, blue: 113.0 / 255.0)
+    /// Cool Gray 5 (#BCBEC0) — hairline rules.
     static let aceHairline = Color(red: 188.0 / 255.0, green: 190.0 / 255.0, blue: 192.0 / 255.0)
+    /// Cool Gray 1 (#E6E7E8) — quiet fill behind small-print blocks.
+    static let aceLightGray = Color(red: 230.0 / 255.0, green: 231.0 / 255.0, blue: 232.0 / 255.0)
 }
 
 // MARK: - Small helpers
